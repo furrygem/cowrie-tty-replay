@@ -3,41 +3,85 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TTY Session Viewer</title>
+    <title>Cowrie Session Player</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
     <style>
-        .session-list {
-            margin-top: 2rem;
+        .session-card {
+            transition: transform 0.2s;
+            margin-bottom: 20px;
+            height: 100%;
         }
-        .session-item {
-            padding: 1rem;
-            margin-bottom: 0.5rem;
-            border: 1px solid #dee2e6;
-            border-radius: 0.25rem;
+        .session-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
-        .session-item:hover {
+        .session-icon {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            color: #0d6efd;
+        }
+        .session-date {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+        .upload-section {
             background-color: #f8f9fa;
+            padding: 2rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+        }
+        .page-header {
+            margin-bottom: 2rem;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1 class="mt-4">TTY Session Viewer</h1>
-        <div class="session-list">
-            {% if sessions %}
-                {% for session in sessions %}
-                    <div class="session-item">
-                        <a href="/session/{{ session }}" class="text-decoration-none">
-                            {{ session }}
-                        </a>
-                    </div>
-                {% endfor %}
-            {% else %}
-                <div class="alert alert-info">
-                    No sessions found in the S3 bucket.
-                </div>
-            {% endif %}
+    <div class="container py-5">
+        <div class="page-header text-center">
+            <h1 class="display-4">Cowrie Session Player</h1>
+            <p class="lead">View and analyze your Cowrie honeypot sessions</p>
         </div>
+
+        <div class="upload-section">
+            <h2 class="h4 mb-3">Upload New Session</h2>
+            <form action="/upload" method="post" enctype="multipart/form-data" class="row g-3">
+                <div class="col-md-8">
+                    <input type="file" name="file" class="form-control" accept=".json" required>
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-primary w-100">Upload Session</button>
+                </div>
+            </form>
+        </div>
+
+        <h2 class="h4 mb-3">Available Sessions</h2>
+        {% if sessions %}
+            <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+                {% for session in sessions %}
+                <div class="col">
+                    <div class="card session-card">
+                        <div class="card-body text-center">
+                            <i class="bi bi-terminal session-icon"></i>
+                            <h5 class="card-title">{{ session.name }}</h5>
+                            <p class="session-date">
+                                <i class="bi bi-clock"></i> {{ session.date }}
+                            </p>
+                            <a href="/session/{{ session.name }}" class="btn btn-outline-primary">
+                                <i class="bi bi-play-fill"></i> Play Session
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> No sessions available. Upload a session to get started.
+            </div>
+        {% endif %}
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html> 

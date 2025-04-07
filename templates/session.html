@@ -88,8 +88,15 @@
         let playbackSpeed = 1;
         let currentTimeout = null;
 
+        function logDebug(message) {
+            console.log(message);
+            debugInfo.innerHTML += message + '<br>';
+        }
+
         function initializeTerminal() {
             try {
+                logDebug('Initializing terminal...');
+                // Create terminal instance
                 term = new Terminal({
                     cursorBlink: true,
                     fontSize: 14,
@@ -119,18 +126,26 @@
                     minimumContrastRatio: 1
                 });
 
+                // Load addons
+                logDebug('Loading addons...');
                 fitAddon = new FitAddon.FitAddon();
                 webLinksAddon = new WebLinksAddon.WebLinksAddon();
                 term.loadAddon(fitAddon);
                 term.loadAddon(webLinksAddon);
 
+                // Open terminal
+                logDebug('Opening terminal...');
                 term.open(document.getElementById('terminal'));
                 fitAddon.fit();
 
+                // Hide loading message
                 document.getElementById('loading').style.display = 'none';
+                logDebug('Terminal initialized successfully');
+
                 return true;
             } catch (error) {
                 console.error('Failed to initialize terminal:', error);
+                logDebug('Failed to initialize terminal: ' + error.message);
                 document.getElementById('loading').innerHTML = 
                     '<span class="error-message">Failed to initialize terminal:<br>' + 
                     error.message + '</span>';
@@ -138,6 +153,7 @@
             }
         }
 
+        // Handle window resize
         window.addEventListener('resize', () => {
             if (fitAddon) {
                 fitAddon.fit();
@@ -148,26 +164,33 @@
         let sessionData = [];
         let lastTimestamp = null;
 
+        // Load and play the session
         async function playSession() {
             if (!initializeTerminal()) {
                 return;
             }
 
             try {
+                logDebug('Fetching session data...');
                 const response = await fetch(`/api/session/{{ session_name }}`);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 sessionData = await response.json();
+                logDebug(`Received ${sessionData.length} entries from session`);
+                
+                // Start processing entries
                 processNextEntry();
             } catch (error) {
                 console.error('Error playing session:', error);
+                logDebug('Error playing session: ' + error.message);
                 term.write('\r\nError playing session: ' + error.message + '\r\n');
             }
         }
 
         function processNextEntry() {
             if (currentEntryIndex >= sessionData.length) {
+                logDebug('Session playback completed');
                 return;
             }
 
@@ -184,6 +207,8 @@
                 delay = Math.min(delay, 0.1);
             }
             lastTimestamp = entry.timestamp;
+            
+            logDebug(`Processing entry ${currentEntryIndex}/${sessionData.length} (delay: ${delay.toFixed(3)}s)`);
             
             let data = entry.data;
             data = data.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
@@ -205,6 +230,7 @@
             }
         }
 
+        // Start playing the session when the page loads
         document.addEventListener('DOMContentLoaded', () => {
             const playPauseBtn = document.getElementById('playPauseBtn');
             const playPauseIcon = document.getElementById('playPauseIcon');
@@ -232,8 +258,10 @@
                 speedValue.textContent = `${playbackSpeed}x`;
             });
 
+            logDebug('Page loaded, starting session playback...');
             playSession().catch(error => {
                 console.error('Failed to start session playback:', error);
+                logDebug('Failed to start session playback: ' + error.message);
                 document.getElementById('loading').innerHTML = 
                     '<span class="error-message">Failed to start session playback:<br>' + 
                     error.message + '</span>';

@@ -10,13 +10,15 @@ import io
 import time
 from pathlib import Path
 import logging
+from datetime import datetime
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 load_dotenv()
 
 app = FastAPI(title="TTY Session Viewer")
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 s3 = boto3.client(
@@ -41,12 +43,16 @@ templates = Jinja2Templates(directory="templates")
 
 def process_tty_session(session_data, settings):
     """Process a tty session and return raw data with metadata"""
+    logger.debug("Starting to process TTY session")
+    logger.debug(f"Settings: {settings}")
+    
     ssize = struct.calcsize("<iLiiLL")
     currtty, prevtime, prefdir = 0, 0, 0
     output = []
     current_line = []
     
     fd = io.BytesIO(session_data)
+    logger.debug(f"Created BytesIO object with {len(session_data)} bytes")
     
     while True:
         try:
@@ -54,19 +60,25 @@ def process_tty_session(session_data, settings):
                 "<iLiiLL", fd.read(ssize)
             )
             data = fd.read(length)
+            logger.debug(f"Read operation: op={op}, tty={tty}, length={length}, direction={direction}")
         except struct.error as e:
+            logger.debug(f"End of session data: {e}")
             break
 
         if currtty == 0:
             currtty = tty
+            logger.debug(f"Set current TTY to {currtty}")
 
         if str(tty) == str(currtty) and op == OP_WRITE:
+            logger.debug(f"Processing write operation for TTY {tty}")
             if prefdir == 0:
                 prefdir = direction
+                logger.debug(f"Set preferred direction to {prefdir}")
                 if settings["input_only"]:
                     prefdir = TYPE_INPUT
                     if direction == TYPE_INPUT:
                         prefdir = TYPE_OUTPUT
+                    logger.debug(f"Adjusted preferred direction to {prefdir} due to input_only setting")
             
             if direction == prefdir or settings["both_dirs"]:
                 try:
@@ -82,17 +94,37 @@ def process_tty_session(session_data, settings):
                     logger.error(f"Error decoding data: {e}")
                 
         elif str(tty) == str(currtty) and op == OP_CLOSE:
+            logger.debug("Session closed")
             break
     
+    logger.debug(f"Finished processing TTY session, generated {len(output)} entries")        
     return output
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     """List all available sessions"""
     try:
-        response = s3.list_objects_v2(Bucket=BUCKET_NAME)
-        sessions = [obj['Key'].split('/')[-1] for obj in response.get('Contents', []) if obj['Key'].startswith('tty_logs/')]
-        logger.debug(f"Found {len(sessions)} sessions")
+        sessions = []
+        response = s3.list_objects_v2(Bucket=BUCKET_NAME, Prefix='tty_logs/')
+        
+        for obj in response.get('Contents', []):
+            key = obj['Key']
+            if key == 'tty_logs/':
+                continue
+                
+            session_name = key.replace('tty_logs/', '')
+            mod_time = obj['LastModified'].timestamp()
+            mod_date = datetime.fromtimestamp(mod_time)
+            formatted_date = mod_date.strftime('%Y-%m-%d %H:%M:%S')
+            
+            sessions.append({
+                'name': session_name,
+                'date': formatted_date, 
+                'timestamp': mod_time
+            })
+        # Sort sessions by date (newest first)
+        sessions.sort(key=lambda x: x['timestamp'], reverse=True)
+        
         return templates.TemplateResponse(
             "index.html",
             {"request": request, "sessions": sessions}
